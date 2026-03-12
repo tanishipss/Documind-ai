@@ -9,7 +9,10 @@ import requests
 
 from document_processing.loaders.pdf_loader import load_document
 from document_processing.preprocessing.chunker import chunk_text
-from ai_engine.rag.chunk_retriever import retrieve_relevant_chunks
+from ai_engine.rag.chunk_retriever import (
+    index_document,
+    retrieve_relevant_chunks
+)
 from backend.services.answer_evaluator import evaluate_answer
 from ai_engine.llm.ollama_client import ask_llm
 from semantic_versioning.question_updater import update_questions
@@ -51,6 +54,9 @@ if "topic" not in st.session_state:
 if "previous_text" not in st.session_state:
     st.session_state.previous_text = None
 
+if "doc_id" not in st.session_state:
+    st.session_state.doc_id = None
+
 
 # ---------------- TOPIC DETECTION ----------------
 
@@ -80,26 +86,47 @@ uploaded_file = st.file_uploader(
 )
 
 
+# ---------------- DOCUMENT INDEXING ----------------
+
+if uploaded_file:
+
+    file_id = f"{uploaded_file.name}_{uploaded_file.size}"
+
+    if st.session_state.doc_id != file_id:
+
+        with st.spinner("Processing document..."):
+
+            text = load_document(uploaded_file)
+
+            chunks = chunk_text(text)
+
+            index_document(chunks, doc_id=file_id)
+
+            st.session_state.doc_id = file_id
+            st.session_state.full_text = text
+            st.session_state.generated = False
+
+        st.success(f"Document indexed: {len(chunks)} chunks stored")
+
+
 # ---------------- GENERATE QUIZ ----------------
 
-if uploaded_file and not st.session_state.generated:
-
-    text = load_document(uploaded_file)
-
-    chunks = chunk_text(text)
-
-    # RAG retrieval
-    best_chunks = retrieve_relevant_chunks(chunks)
-
-    combined_text = " ".join(best_chunks)
+if uploaded_file and st.session_state.doc_id:
 
     if st.button("🚀 Generate Quiz"):
 
         with st.spinner("AI is analyzing your document..."):
 
-            st.session_state.topic = detect_topic(combined_text)
+            topic = detect_topic(st.session_state.full_text)
+            st.session_state.topic = topic
 
-            # Call FastAPI backend
+            best_chunks = retrieve_relevant_chunks(
+                query=topic,
+                top_k=8
+            )
+
+            combined_text = " ".join(best_chunks)
+
             response = requests.post(
                 "http://127.0.0.1:8000/generate-quiz",
                 json={
@@ -108,7 +135,19 @@ if uploaded_file and not st.session_state.generated:
                 }
             )
 
-            new_questions = response.json()["questions"]
+            # ---------------- SAFE BACKEND RESPONSE ----------------
+
+            if response.status_code != 200:
+                st.error(f"Backend error {response.status_code}: {response.text}")
+                st.stop()
+
+            response_data = response.json()
+
+            if "questions" not in response_data:
+                st.error(f"Unexpected response from backend: {response_data}")
+                st.stop()
+
+            new_questions = response_data["questions"]
 
             # ---------------- SEMANTIC UPDATE ----------------
 
@@ -126,6 +165,8 @@ if uploaded_file and not st.session_state.generated:
                 questions = new_questions
 
             st.session_state.previous_text = combined_text
+
+            # ---------------- CLEAN QUESTIONS ----------------
 
             clean_questions = []
 
@@ -149,7 +190,7 @@ if uploaded_file and not st.session_state.generated:
         st.success("Quiz generated successfully!")
 
 
-# ---------------- SHOW QUIZ INFO ----------------
+# ---------------- QUIZ INFO ----------------
 
 if st.session_state.generated:
 
@@ -174,7 +215,6 @@ if st.session_state.generated and st.session_state.questions:
         st.markdown(f"### Question {i+1}")
         st.write(q["question"])
 
-        # MCQ
         if q["type"] == "mcq":
 
             answer = st.radio(
@@ -183,7 +223,6 @@ if st.session_state.generated and st.session_state.questions:
                 key=f"mcq_{i}"
             )
 
-        # TRUE FALSE
         elif q["type"] == "true_false":
 
             answer = st.radio(
@@ -192,7 +231,6 @@ if st.session_state.generated and st.session_state.questions:
                 key=f"tf_{i}"
             )
 
-        # EXPLANATION
         else:
 
             answer = st.text_area(
@@ -208,7 +246,6 @@ if st.session_state.generated and st.session_state.questions:
         st.divider()
 
     progress = answered / total_questions
-
     progress_bar.progress(progress)
 
     st.info(f"Answered {answered} / {total_questions}")
@@ -271,8 +308,6 @@ if st.session_state.generated and st.session_state.questions:
             st.divider()
 
 
-        # ---------------- METRICS ----------------
-
         total = len(st.session_state.questions)
         wrong = total - score - unanswered
         accuracy = (score / total) * 100
@@ -284,8 +319,6 @@ if st.session_state.generated and st.session_state.questions:
         col3.metric("Wrong", wrong)
         col4.metric("Unanswered", unanswered)
 
-
-        # ---------------- PIE CHART ----------------
 
         chart_data = {
             "Result": ["Correct", "Wrong", "Unanswered"],
@@ -300,3 +333,21 @@ if st.session_state.generated and st.session_state.questions:
         )
 
         st.plotly_chart(fig, use_container_width=True)
+
+
+        # ---------------- RETAKE / NEW DOC ----------------
+
+        st.divider()
+        col_a, col_b = st.columns(2)
+
+        with col_a:
+            if st.button("🔄 Retake Same Quiz"):
+                st.session_state.answers = {}
+                st.rerun()
+
+        with col_b:
+            if st.button("📄 Upload New Document"):
+                for key in ["questions", "answers", "generated",
+                            "topic", "previous_text", "doc_id", "full_text"]:
+                    st.session_state.pop(key, None)
+                st.rerun()

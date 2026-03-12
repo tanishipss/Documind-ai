@@ -1,28 +1,15 @@
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
+from vector_store.chroma_client import store_chunks, retrieve_chunks, clear_collection
 
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
+def index_document(chunks, doc_id=None):
+    """Index all chunks into ChromaDB."""
+    clear_collection()  # fresh start for each new document
+    store_chunks(chunks, doc_id=doc_id)
 
 
-def retrieve_relevant_chunks(chunks, top_k=5):
-
-    if not chunks:
-        return []
-
-    embeddings = model.encode(chunks)
-
-    # centroid of document
-    centroid = np.mean(embeddings, axis=0)
-
-    similarities = cosine_similarity(
-        [centroid],
-        embeddings
-    )[0]
-
-    ranked_indices = np.argsort(similarities)[::-1]
-
-    selected_chunks = [chunks[i] for i in ranked_indices[:top_k]]
-
-    return selected_chunks
+def retrieve_relevant_chunks(chunks=None, query="main concepts", top_k=5):
+    """
+    Retrieve chunks from ChromaDB using semantic search.
+    `chunks` param kept for backward compatibility but ignored if ChromaDB has data.
+    """
+    return retrieve_chunks(query=query, top_k=top_k)
