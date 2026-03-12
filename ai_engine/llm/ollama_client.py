@@ -3,64 +3,38 @@ import logging
 import time
 
 logger = logging.getLogger(__name__)
-
-# Ollama local API endpoint
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
 
-def ask_llm(prompt, model="llama3.2:3b", retries=3, timeout=300):
-    """
-    Send a prompt to the local Ollama LLM.
-
-    Args:
-        prompt (str): Prompt sent to the model
-        model (str): Ollama model name (default: llama3.2:3b)
-        retries (int): Number of retry attempts
-        timeout (int): Request timeout in seconds
-
-    Returns:
-        str | None: Model response text or None if failed
-    """
-
+def ask_llm(prompt, model="llama3.2:3b", retries=2, timeout=600):
     payload = {
         "model": model,
         "prompt": prompt,
-        "stream": False
+        "stream": False,
+        "options": {
+            "temperature": 0.1,
+            "num_predict": 5000,  # increased from 3000 to fit 25 questions
+            "num_ctx": 4096       # increased from 2048 for larger context
+        }
     }
 
     for attempt in range(1, retries + 1):
         try:
-            logger.info(f"Calling Ollama (attempt {attempt}/{retries})...")
-
-            response = requests.post(
-                OLLAMA_URL,
-                json=payload,
-                timeout=timeout
-            )
-
+            logger.info(f"Ollama attempt {attempt}/{retries} | model={model}")
+            response = requests.post(OLLAMA_URL, json=payload, timeout=timeout)
             response.raise_for_status()
-
-            data = response.json()
-
-            if "response" in data:
-                return data["response"].strip()
-
-            logger.error("Unexpected Ollama response format")
-            return None
+            return response.json()["response"]
 
         except requests.exceptions.Timeout:
             logger.warning(f"Ollama timeout (attempt {attempt}/{retries})")
-
             if attempt == retries:
-                logger.error("All retries exhausted")
                 return None
-
             time.sleep(3)
 
         except requests.exceptions.ConnectionError:
-            logger.error("Cannot connect to Ollama. Run: ollama serve")
+            logger.error("Ollama not running — run: ollama serve")
             return None
 
         except Exception as e:
-            logger.error(f"LLM error: {e}")
+            logger.error(f"Ollama error: {e}")
             return None
