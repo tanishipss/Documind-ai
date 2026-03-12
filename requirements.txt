@@ -1,0 +1,7 @@
+streamlit
+pypdf
+ollama
+sentence-transformers
+chromadb
+scikit-learn
+plotly
