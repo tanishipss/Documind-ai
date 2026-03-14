@@ -1,10 +1,15 @@
 import sys
 import os
+import json
+import random
+from datetime import datetime
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import streamlit as st
 import plotly.express as px
+import pandas as pd
 import requests
 
 from document_processing.loaders.pdf_loader import load_document
@@ -18,9 +23,205 @@ from semantic_versioning.document_comparator import (
 )
 
 st.set_page_config(page_title="DocuMind AI", page_icon="📘", layout="wide")
+
+
+# ---------------- HELPERS ----------------
+
+def save_quiz_result(topic, difficulty, score, total, questions, answers):
+    result = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "topic": topic,
+        "difficulty": difficulty,
+        "score": score,
+        "total": total,
+        "accuracy": round((score / total) * 100, 1) if total else 0,
+        "questions": [
+            {
+                "question": q["question"],
+                "type": q["type"],
+                "correct_answer": q["answer"],
+                "user_answer": answers.get(i, ""),
+            }
+            for i, q in enumerate(questions)
+        ]
+    }
+
+    os.makedirs("data/question_bank", exist_ok=True)
+    filename = f"data/question_bank/quiz_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+    with open(filename, "w") as f:
+        json.dump(result, f, indent=2)
+
+    return filename
+
+
+def export_pdf(topic, difficulty, score, total, questions, answers):
+    try:
+        from fpdf import FPDF
+    except ImportError:
+        return None
+
+    pdf = FPDF()
+    pdf.add_page()
+
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "DocuMind AI Quiz Results", ln=True)
+    pdf.ln(3)
+
+    pdf.set_font("Helvetica", "", 12)
+    pdf.cell(0, 8, f"Topic: {topic}", ln=True)
+    pdf.cell(0, 8, f"Difficulty: {difficulty}", ln=True)
+    pdf.cell(0, 8, f"Score: {score}/{total}", ln=True)
+    pdf.cell(0, 8, f"Accuracy: {round((score / total) * 100, 1) if total else 0}%", ln=True)
+    pdf.cell(0, 8, f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True)
+    pdf.ln(5)
+
+    for i, q in enumerate(questions):
+        user_ans = answers.get(i, "Unanswered")
+        correct = str(user_ans).strip().lower() == str(q["answer"]).strip().lower()
+        icon = "CORRECT" if correct else "INCORRECT"
+
+        pdf.set_font("Helvetica", "B", 11)
+        question_text = q["question"].encode("latin-1", "replace").decode("latin-1")
+        pdf.multi_cell(0, 7, f"Q{i+1}: {question_text}")
+
+        pdf.set_font("Helvetica", "", 10)
+        user_text = str(user_ans).encode("latin-1", "replace").decode("latin-1")
+        correct_text = str(q["answer"]).encode("latin-1", "replace").decode("latin-1")
+
+        pdf.cell(0, 6, f"Your Answer: {user_text} [{icon}]", ln=True)
+        if not correct:
+            pdf.cell(0, 6, f"Correct Answer: {correct_text}", ln=True)
+        pdf.ln(3)
+
+    return bytes(pdf.output())
+
+
+def detect_topic(text):
+    prompt = f"""Identify the main topic of the following study material.
+Return ONLY the topic name. No explanation, no extra text, just the topic.
+
+{text[:2000]}"""
+    topic = ask_llm(prompt)
+    return topic.strip() if topic else "General Topic"
+
+
+# ---------------- NAVIGATION ----------------
+
+page = st.sidebar.radio("Navigation", ["🏠 Quiz", "📊 History"])
+
+
+# ================================================================
+# HISTORY PAGE
+# ================================================================
+
+if page == "📊 History":
+
+    st.title("📊 Quiz History")
+
+    history_dir = "data/question_bank"
+
+    if not os.path.exists(history_dir) or not os.listdir(history_dir):
+        st.info("No quiz history yet. Take a quiz first!")
+        st.stop()
+
+    files = sorted(
+        [f for f in os.listdir(history_dir) if f.endswith(".json")],
+        reverse=True
+    )
+
+    # ---------------- PERFORMANCE CHART ----------------
+    if len(files) > 1:
+        history_data = []
+        for filename in sorted(files):
+            try:
+                with open(f"{history_dir}/{filename}") as f:
+                    r = json.load(f)
+                history_data.append({
+                    "Date": r["timestamp"],
+                    "Accuracy": r["accuracy"],
+                    "Topic": r["topic"],
+                    "Score": f"{r['score']}/{r['total']}"
+                })
+            except Exception:
+                continue
+
+        if history_data:
+            df = pd.DataFrame(history_data)
+            fig = px.line(
+                df,
+                x="Date",
+                y="Accuracy",
+                title="📈 Your Accuracy Over Time",
+                markers=True,
+                hover_data=["Topic", "Score"]
+            )
+            fig.update_layout(yaxis_range=[0, 100])
+            st.plotly_chart(fig, use_container_width=True)
+            st.divider()
+
+    # ---------------- QUIZ LIST ----------------
+    st.subheader("Past Quizzes")
+
+    for filename in files:
+        try:
+            with open(f"{history_dir}/{filename}") as f:
+                result = json.load(f)
+        except Exception:
+            continue
+
+        accuracy = result.get("accuracy", 0)
+        icon = "🟢" if accuracy >= 70 else "🟡" if accuracy >= 40 else "🔴"
+
+        with st.expander(
+            f"{icon} {result['topic']} | {result['difficulty']} | "
+            f"Score: {result['score']}/{result['total']} ({accuracy}%) | "
+            f"{result['timestamp']}"
+        ):
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Score", f"{result['score']}/{result['total']}")
+            col2.metric("Accuracy", f"{accuracy}%")
+            col3.metric("Difficulty", result["difficulty"])
+            st.divider()
+
+            for i, q in enumerate(result["questions"]):
+                user_ans = q.get("user_answer", "")
+                correct = (
+                    str(user_ans).strip().lower() ==
+                    str(q["correct_answer"]).strip().lower()
+                )
+                icon_q = "✅" if correct else ("⚠️" if not user_ans else "❌")
+
+                st.markdown(f"**{icon_q} Q{i+1}:** {q['question']}")
+                st.write(f"Your answer: {user_ans or 'Unanswered'}")
+                if not correct:
+                    st.write(f"Correct answer: {q['correct_answer']}")
+                st.divider()
+
+    st.stop()
+
+
+# ================================================================
+# QUIZ PAGE
+# ================================================================
+
 st.title("📘 DocuMind AI – Smart Quiz Generator")
 
-difficulty = st.selectbox("Select Quiz Difficulty", ["Easy", "Medium", "Hard"])
+# ---------------- SETTINGS ----------------
+col_diff, col_timer, col_shuffle = st.columns(3)
+
+with col_diff:
+    difficulty = st.selectbox("Select Quiz Difficulty", ["Easy", "Medium", "Hard"])
+
+with col_timer:
+    enable_timer = st.checkbox("⏱️ Show time guidance")
+    time_limit = 30
+    if enable_timer:
+        time_limit = st.slider("Seconds per question", 15, 120, 30)
+
+with col_shuffle:
+    shuffle_questions = st.checkbox("🔀 Shuffle questions & options", value=True)
+
 
 # ---------------- SESSION STATE ----------------
 for key, default in {
@@ -39,16 +240,6 @@ for key, default in {
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
-
-
-# ---------------- TOPIC DETECTION ----------------
-def detect_topic(text):
-    prompt = f"""Identify the main topic of the following study material.
-Return ONLY the topic name. No explanation, no extra text, just the topic.
-
-{text[:2000]}"""
-    topic = ask_llm(prompt)
-    return topic.strip() if topic else "General Topic"
 
 
 # ---------------- FILE UPLOAD ----------------
@@ -114,7 +305,7 @@ if uploaded_file1 and not st.session_state.generated:
 
     if st.button("🚀 Generate Quiz"):
 
-        with st.spinner("AI is analyzing your document(s)... this may take a minute."):
+        with st.spinner("AI is analyzing your document(s)... this may take a few minutes."):
 
             try:
 
@@ -136,7 +327,7 @@ if uploaded_file1 and not st.session_state.generated:
                             "text": " ".join(best_chunks),
                             "difficulty": difficulty
                         },
-                        timeout=300
+                        timeout=600
                     )
 
                     if response.status_code != 200:
@@ -162,9 +353,8 @@ if uploaded_file1 and not st.session_state.generated:
                     topic = detect_topic(st.session_state.doc2_text)
                     st.session_state.topic = topic
 
-                    # SAME — reuse all questions
+                    # SAME
                     if change_type == "same":
-
                         if st.session_state.questions:
                             questions = st.session_state.questions
                         else:
@@ -173,28 +363,25 @@ if uploaded_file1 and not st.session_state.generated:
                             )
                             if not best_chunks:
                                 best_chunks = st.session_state.doc1_chunks[:8]
-
                             response = requests.post(
                                 "http://127.0.0.1:8000/generate-quiz",
                                 json={
                                     "text": " ".join(best_chunks),
                                     "difficulty": difficulty
                                 },
-                                timeout=300
+                                timeout=600
                             )
                             if response.status_code != 200:
                                 st.error(f"Backend error: {response.text}")
                                 st.stop()
                             questions = response.json().get("questions", [])
 
-                    # PARTIAL — keep old + generate from new content
+                    # PARTIAL
                     elif change_type == "partial":
-
                         unmatched = get_unmatched_chunks(
                             st.session_state.doc1_chunks,
                             st.session_state.doc2_chunks
                         )
-
                         if not unmatched or len(" ".join(unmatched).strip()) < 50:
                             unmatched = st.session_state.doc2_chunks[:8]
 
@@ -204,7 +391,7 @@ if uploaded_file1 and not st.session_state.generated:
                                 "text": " ".join(unmatched),
                                 "difficulty": difficulty
                             },
-                            timeout=300
+                            timeout=600
                         )
                         if new_response.status_code != 200:
                             st.error(f"Backend error: {new_response.text}")
@@ -214,9 +401,8 @@ if uploaded_file1 and not st.session_state.generated:
                         old_questions = st.session_state.questions or []
                         questions = old_questions[:6] + new_questions
 
-                    # DIFFERENT — generate fresh from doc2
+                    # DIFFERENT
                     else:
-
                         best_chunks = retrieve_relevant_chunks(
                             query=topic, doc_id_prefix="doc2", top_k=8
                         )
@@ -229,14 +415,14 @@ if uploaded_file1 and not st.session_state.generated:
                                 "text": " ".join(best_chunks),
                                 "difficulty": difficulty
                             },
-                            timeout=300
+                            timeout=600
                         )
                         if response.status_code != 200:
                             st.error(f"Backend error: {response.text}")
                             st.stop()
                         questions = response.json().get("questions", [])
 
-                # ---------------- CLEAN & STORE ----------------
+                # ---------------- CLEAN ----------------
                 clean_questions = [
                     q for q in questions
                     if isinstance(q, dict)
@@ -248,10 +434,19 @@ if uploaded_file1 and not st.session_state.generated:
 
                 if not clean_questions:
                     st.error(
-                        "No valid questions were generated. "
+                        "No valid questions generated. "
                         "Make sure Ollama is running and the document has enough text."
                     )
                     st.stop()
+
+                # ---------------- SHUFFLE ----------------
+                if shuffle_questions:
+                    random.shuffle(clean_questions)
+                    for q in clean_questions:
+                        if q["type"] == "mcq":
+                            correct = q["answer"]
+                            random.shuffle(q["options"])
+                            q["answer"] = correct
 
                 st.session_state.questions = clean_questions[:25]
                 st.session_state.answers = {}
@@ -260,17 +455,15 @@ if uploaded_file1 and not st.session_state.generated:
 
             except requests.exceptions.Timeout:
                 st.error(
-                    "⏱️ Ollama timed out generating questions. "
-                    "Try switching to a faster model: run `ollama pull llama3.2:3b` "
-                    "in your terminal, then restart the app."
+                    "⏱️ Ollama timed out. Try using a smaller document or "
+                    "run `ollama pull phi3:mini` for a faster model."
                 )
                 st.stop()
 
             except requests.exceptions.ConnectionError:
                 st.error(
                     "❌ Cannot reach the backend. "
-                    "Make sure FastAPI is running: "
-                    "`uvicorn backend.main:app --reload --port 8000`"
+                    "Run: `uvicorn backend.main:app --reload --port 8000`"
                 )
                 st.stop()
 
@@ -317,6 +510,10 @@ if st.session_state.generated and st.session_state.questions:
     for i, q in enumerate(st.session_state.questions):
 
         st.markdown(f"### Question {i+1}")
+
+        if enable_timer:
+            st.caption(f"⏱️ Suggested time: {time_limit} seconds")
+
         st.write(q["question"])
 
         if q["type"] == "mcq":
@@ -338,6 +535,7 @@ if st.session_state.generated and st.session_state.questions:
 
     progress_bar.progress(answered / total_questions)
     st.info(f"Answered {answered} / {total_questions}")
+
 
     # ---------------- SUBMIT ----------------
     if st.button("✅ Submit Quiz"):
@@ -379,6 +577,16 @@ if st.session_state.generated and st.session_state.questions:
                 score += 1
             else:
                 st.error("❌ Incorrect")
+                if q["type"] in ("mcq", "true_false"):
+                    with st.expander("💡 See explanation"):
+                        explanation_prompt = (
+                            f'In one sentence, explain why '
+                            f'"{correct_answer}" is the correct answer to: '
+                            f'"{q["question"]}"'
+                        )
+                        explanation = ask_llm(explanation_prompt)
+                        if explanation:
+                            st.write(explanation.strip())
 
             st.divider()
 
@@ -393,6 +601,7 @@ if st.session_state.generated and st.session_state.questions:
         col3.metric("Wrong", wrong)
         col4.metric("Unanswered", unanswered)
 
+        # ---------------- PIE CHART ----------------
         fig = px.pie(
             {
                 "Result": ["Correct", "Wrong", "Unanswered"],
@@ -404,6 +613,40 @@ if st.session_state.generated and st.session_state.questions:
         )
         st.plotly_chart(fig, use_container_width=True)
 
+        # ---------------- SAVE RESULT ----------------
+        saved_path = save_quiz_result(
+            st.session_state.topic,
+            st.session_state.difficulty,
+            score, total,
+            st.session_state.questions,
+            st.session_state.answers
+        )
+        st.info(f"💾 Result saved to `{saved_path}`")
+
+        # ---------------- EXPORT PDF ----------------
+        st.divider()
+        if st.button("📥 Download Results as PDF"):
+            pdf_bytes = export_pdf(
+                st.session_state.topic,
+                st.session_state.difficulty,
+                score, total,
+                st.session_state.questions,
+                st.session_state.answers
+            )
+            if pdf_bytes:
+                st.download_button(
+                    label="📄 Click to Download PDF",
+                    data=pdf_bytes,
+                    file_name=f"quiz_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                    mime="application/pdf"
+                )
+            else:
+                st.warning(
+                    "PDF export requires fpdf2. "
+                    "Run: `pip install fpdf2`"
+                )
+
+        # ---------------- RESET BUTTONS ----------------
         st.divider()
         col_a, col_b = st.columns(2)
 

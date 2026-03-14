@@ -1,0 +1,100 @@
+{
+  "timestamp": "2026-03-13 14:26:38",
+  "topic": "Electricity",
+  "difficulty": "Easy",
+  "score": 5,
+  "total": 15,
+  "accuracy": 33.3,
+  "questions": [
+    {
+      "question": "Electric current is carried by moving electrons through a conductor.",
+      "type": "true_false",
+      "correct_answer": "True",
+      "user_answer": "True"
+    },
+    {
+      "question": "What is the force between two charges?",
+      "type": "explanation",
+      "correct_answer": "The force between two charges varies directly as the product of two charges and inversely as the square of the distance between both charges.",
+      "user_answer": ""
+    },
+    {
+      "question": "What is the definition of electric current?",
+      "type": "explanation",
+      "correct_answer": "Electric current is the flow of electric charge through a conductor.",
+      "user_answer": ""
+    },
+    {
+      "question": "Like charges repel each other.",
+      "type": "true_false",
+      "correct_answer": "True",
+      "user_answer": "True"
+    },
+    {
+      "question": "What is the value of 1 kilowatt hour in joules?",
+      "type": "explanation",
+      "correct_answer": "1 kilowatt hour is equal to 3.6 \u00d7 10^6 joules.",
+      "user_answer": ""
+    },
+    {
+      "question": "Electric power is measured in watts.",
+      "type": "true_false",
+      "correct_answer": "True",
+      "user_answer": "True"
+    },
+    {
+      "question": "What is the maximum value of electric current that can pass through an electric appliance?",
+      "type": "mcq",
+      "correct_answer": "Current rating of electric appliance",
+      "user_answer": "Current rating of electric appliance and wattage rating"
+    },
+    {
+      "question": "What is the unit of electric charge?",
+      "type": "mcq",
+      "correct_answer": "Coulomb",
+      "user_answer": "Ampere"
+    },
+    {
+      "question": "Electric potential difference is equal to the amount of work done to move a unit charge between two points against a static electric field.",
+      "type": "true_false",
+      "correct_answer": "True",
+      "user_answer": "True"
+    },
+    {
+      "question": "What is the unit of electric power?",
+      "type": "explanation",
+      "correct_answer": "The unit of electric power is Watt.",
+      "user_answer": ""
+    },
+    {
+      "question": "What is the S.I. unit of electric potential difference?",
+      "type": "explanation",
+      "correct_answer": "The S.I. unit of electric potential difference is Volt.",
+      "user_answer": ""
+    },
+    {
+      "question": "What is the difference between electric potential and potential difference?",
+      "type": "mcq",
+      "correct_answer": "Electric potential difference is the difference in the amount of electric potential energy between two points in an electric circuit",
+      "user_answer": "Electric potential is the difference between two points in an electric circuit"
+    },
+    {
+      "question": "What is the formula for the total resistance of a system of resistors?",
+      "type": "mcq",
+      "correct_answer": "1/Rp = 1/R1 + 1/R2 + 1/R3",
+      "user_answer": "1/Rp = 1/R1 + 1/R3"
+    },
+    {
+      "question": "What is the SI unit of electric current?",
+      "type": "mcq",
+      "correct_answer": "Ampere",
+      "user_answer": "Ohm"
+    },
+    {
+      "question": "The commercial unit of electric energy is kilowatt hour.",
+      "type": "true_false",
+      "correct_answer": "True",
+      "user_answer": "True"
+    }
+  ]
+}

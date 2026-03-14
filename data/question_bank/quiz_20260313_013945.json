@@ -1,0 +1,100 @@
+{
+  "timestamp": "2026-03-13 01:39:45",
+  "topic": "Electricity",
+  "difficulty": "Easy",
+  "score": 6,
+  "total": 15,
+  "accuracy": 40.0,
+  "questions": [
+    {
+      "question": "Electric current is denoted by the letter 'I'.",
+      "type": "true_false",
+      "correct_answer": "True",
+      "user_answer": "True"
+    },
+    {
+      "question": "What is the unit of electric power?",
+      "type": "explanation",
+      "correct_answer": "The unit of electric power is Watt.",
+      "user_answer": ""
+    },
+    {
+      "question": "Electric power is measured in watts.",
+      "type": "true_false",
+      "correct_answer": "True",
+      "user_answer": "True"
+    },
+    {
+      "question": "What is the meaning of the term 'rate of flow'?",
+      "type": "explanation",
+      "correct_answer": "The rate of flow means the amount of charge flowing through a particular area in unit time.",
+      "user_answer": ""
+    },
+    {
+      "question": "What is the formula for the total resistance of a system of resistors?",
+      "type": "mcq",
+      "correct_answer": "1/Rp = 1/R1 + 1/R2 + 1/R3",
+      "user_answer": "1/Rp = 1/R1 + 1/R3"
+    },
+    {
+      "question": "What is the force between two charges?",
+      "type": "mcq",
+      "correct_answer": "It varies directly as the product of two charges and inversely as the square of the distance between them.",
+      "user_answer": "It varies directly as the product of two charges and inversely as the square of the distance between them."
+    },
+    {
+      "question": "Electric potential difference is equal to the amount of work done to move a unit charge between two points against a static electric field.",
+      "type": "true_false",
+      "correct_answer": "True",
+      "user_answer": "True"
+    },
+    {
+      "question": "What is the maximum value of electric current that can pass through an electric appliance without damaging it?",
+      "type": "mcq",
+      "correct_answer": "Current rating of electric appliance",
+      "user_answer": "Current rating of electric appliance"
+    },
+    {
+      "question": "What is the fundamental property of matter that is similar to mass?",
+      "type": "mcq",
+      "correct_answer": "Charge",
+      "user_answer": "Temperature"
+    },
+    {
+      "question": "There is only one type of charge.",
+      "type": "true_false",
+      "correct_answer": "False",
+      "user_answer": "True"
+    },
+    {
+      "question": "The flow of electric charge is known as electric current.",
+      "type": "true_false",
+      "correct_answer": "True",
+      "user_answer": "True"
+    },
+    {
+      "question": "What is the unit of electric potential difference?",
+      "type": "explanation",
+      "correct_answer": "The unit of electric potential difference is voltage (V).",
+      "user_answer": ""
+    },
+    {
+      "question": "What is the SI unit of electric charge?",
+      "type": "explanation",
+      "correct_answer": "The SI unit of electric charge is coulomb.",
+      "user_answer": ""
+    },
+    {
+      "question": "What is the formula for electric power?",
+      "type": "mcq",
+      "correct_answer": "P = W/t = I^2R",
+      "user_answer": "P = W/t = V^2/R"
+    },
+    {
+      "question": "What is the unit of electric current?",
+      "type": "explanation",
+      "correct_answer": "The unit of electric current is ampere (A).",
+      "user_answer": ""
+    }
+  ]
+}
