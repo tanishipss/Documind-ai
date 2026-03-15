@@ -223,6 +223,11 @@ DocuMind-AI
 ├── requirements.txt
 └── README.md
 ```
+## 📸 Demo
+
+![Dashboard](screenshots/dashboard.png)
+![Quiz](screenshots/quiz.png)
+![Flashcards](screenshots/flashcards.png)
 
 ---
 
